@@ -1,16 +1,9 @@
 import asyncio
-from email import message
-from email.mime import text, image
 
-import aiosqlite
 from aiogram import Router, F
-from aiogram.enums import ParseMode
-from aiogram.filters import Command, command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton,callback_query
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
+from aiogram.types import Message
 from aiogram import Bot
-from aiogram.types import FSInputFile
 
 router = Router()
 
