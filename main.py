@@ -1,7 +1,6 @@
 from os import getenv
 import asyncio
 from aiogram import Dispatcher, Bot
-from dotenv import load_dotenv
 from handless.routes import router, notifier
 
 load_dotenv()
