@@ -16,11 +16,11 @@ async def notifier(bot: Bot):
         if subscribers:
             for user_id in list(subscribers):
                 try:
-                    await bot.send_message(user_id, "diawodawio;dao")
+                    await bot.send_message(user_id, "Заплатите 300р чтобы продолжить")
                 except Exception:
                     pass
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.1)
 
 @router.message(Command('start'))
 async def start(message: Message):
