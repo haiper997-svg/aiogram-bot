@@ -3,7 +3,6 @@ import asyncio
 from aiogram import Dispatcher, Bot
 from handless.routes import router, notifier
 
-load_dotenv()
 TOKEN = getenv("BOT_TOKEN")
 
 dp = Dispatcher()
