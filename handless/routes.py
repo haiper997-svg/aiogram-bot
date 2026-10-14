@@ -130,6 +130,7 @@ def get_product_price(url: str) -> int | None:
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
         logging.info(f"📡 Статус ответа от сайта для {url}: {response.status_code}")
+        logging.warning(f"Тело ответа: {html!r}")
 
         if response.status_code != 200:
             return None
