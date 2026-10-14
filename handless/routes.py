@@ -25,35 +25,26 @@ def get_product_price(url: str) -> int | None:
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # 1. Поиск по известным классам в Bitrix
-            price_element = (
-                    soup.find("div", class_="product-item-detail-price-current") or
-                    soup.find("div", class_="product-item-price-current") or
-                    soup.find(class_=re.compile("price-current", re.I))
-            )
+            # Метод 1: Универсальный поиск по всему тексту страницы (игнорирует HTML-верстку и классы)
+            page_text = soup.get_text()
+            matches = re.findall(r'(\d[\d\s]{1,8})\s*(?:руб|₽|р\.)', page_text, re.IGNORECASE)
+            for m in matches:
+                clean = re.sub(r"\D", "", m)
+                if clean:
+                    val = int(clean)
+                    # Отсеиваем случайные числа (артикулы, размеры и т.д.), оставляя цену
+                    if 100 <= val <= 1000000:
+                        logging.info(f"✅ Успешно найдена цена по тексту: {val}")
+                        return val
 
-            if price_element:
-                clean_price = re.sub(r"\D", "", price_element.text)
-                if clean_price:
-                    return int(clean_price)
-
-            # 2. Поиск через мета-теги
+            # Метод 2: Запасной поиск по мета-тегам товара
             meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
             if meta_price and meta_price.get("content"):
                 clean_price = re.sub(r"\D", "", meta_price["content"])
                 if clean_price:
-                    return int(clean_price)
-
-            # 3. Универсальный поиск по тексту с символом рубля (₽ или руб)
-            for tag in soup.find_all(["div", "span", "p", "b", "strong", "ins", "price"]):
-                text = tag.get_text(strip=True)
-                if ("₽" in text or "руб" in text.lower()) and len(text) < 30:
-                    clean_price = re.sub(r"\D", "", text)
-                    if clean_price:
-                        val = int(clean_price)
-                        # Проверяем, что это похоже на реальную цену товара
-                        if 100 <= val <= 1000000:
-                            return val
+                    val = int(clean_price)
+                    logging.info(f"✅ Найдена цена через мета-теги: {val}")
+                    return val
 
         return None
     except Exception as e:
@@ -86,7 +77,8 @@ async def notifier(bot: Bot):
                             diff = current_price - last_price
                             text = (
                                 f"📈 Цена выросла!\n\n"
-                                f"🔗 [Ссылка на товар]({url})\n"f"📉 Было: {last_price} руб.\n"
+                                f"🔗 [Ссылка на товар]({url})\n"
+                                f"📉 Было: {last_price} руб.\n"
                                 f"📈 Стало: {current_price} руб.\n"
                                 f"⚠️ Рост на: {diff} руб."
                             )
@@ -98,9 +90,9 @@ async def notifier(bot: Bot):
 
                         user_trackers[user_id]["last_price"] = current_price
 
-        await asyncio.sleep(1800)
+        (await asyncio.sleep(1800)
 
-@router.message(Command('start'))
+@router.message(Command('start')))
 async def start(message: Message):
     await message.answer(
         "🤖 Бот мониторинга цен!\n\n"
