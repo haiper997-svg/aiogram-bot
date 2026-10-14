@@ -220,3 +220,115 @@ async def notifier(bot: Bot):
                 if last_price is None:
                     item["last_price"] = current_price
                     continue
+
+                if current_price == last_price:
+                    continue
+
+                text = build_change_text(url, last_price, current_price)
+                try:
+                    await bot.send_message(user_id, text, parse_mode="Markdown")
+                except Exception as e:
+                    logging.error(f"Не удалось отправить сообщение {user_id}: {e}")
+
+                item["last_price"] = current_price
+
+        await asyncio.sleep(CHECK_INTERVAL)
+
+
+# ───────────────────────── Команды ─────────────────────────
+
+@router.message(Command('start'))
+async def start(message: Message):
+    await message.answer(
+        "🤖 Бот мониторинга цен!\n\n"
+        "Отправьте ссылку на товар (или сразу несколько ссылок), "
+        "и я начну следить за ценами.\n\n"
+        f"Можно отслеживать до {MAX_ITEMS_PER_USER} товаров.\n\n"
+        "Команды:\n"
+        "/list — список ваших товаров и цены\n"
+        "/remove НОМЕР — удалить один товар (номер из /list)\n"
+        "/stop — удалить все товары"
+    )
+
+
+@router.message(Command('status', 'list'))
+async def show_list(message: Message):
+    items = user_trackers.get(message.from_user.id)
+    if not items:
+        await message.answer("Нет активных отслеживаний.")
+        return
+
+    lines = ["📋 Ваши товары:\n"]
+    for i, (url, item) in enumerate(items.items(), start=1):
+        price = item["last_price"]
+        price_text = f"{price} руб." if price is not None else "неизвестна"
+        lines.append(f"{i}. {url}\n   🏷 Цена: {price_text}")
+    await message.answer("\n".join(lines))
+
+
+@router.message(Command('remove'))
+async def remove_one(message: Message, command: CommandObject):
+    user_id = message.from_user.id
+    items = user_trackers.get(user_id)
+    if not items:
+        await message.answer("У вас нет активных отслеживаний.")
+        return
+
+    if not command.args or not command.args.strip().isdigit():
+        await message.answer("Укажите номер товара из /list, например: /remove 2")
+        return
+
+    index = int(command.args.strip())
+    urls = list(items.keys())
+    if not 1 <= index <= len(urls):
+        await message.answer(f"Нет товара с номером {index}. Посмотрите /list.")
+        return
+
+    removed_url = urls[index - 1]
+    del items[removed_url]
+    if not items:
+        del user_trackers[user_id]
+
+    await message.answer(f"❌ Удалено:\n{removed_url}")
+
+
+@router.message(Command('stop'))
+async def stop(message: Message):
+    user_id = message.from_user.id
+    if user_id in user_trackers:
+        count = len(user_trackers[user_id])
+        del user_trackers[user_id]
+        await message.answer(f"❌ Отслеживание остановлено. Удалено товаров: {count}.")
+    else:
+        await message.answer("У вас нет активных отслеживаний.")
+
+
+@router.message(F.text.regexp(r"https?://\S+"))
+async def catch_product_links(message: Message):
+    user_id = message.from_user.id
+    urls = list(dict.fromkeys(URL_RE.findall(message.text)))  # без дубликатов, порядок сохранён
+
+    items = user_trackers.setdefault(user_id, {})
+    await message.answer("🔍 Проверяю ссылки...")
+
+    report = []
+    for url in urls:
+        if url in items:
+            report.append(f"ℹ️ Уже отслеживается:\n{url}")
+            continue
+
+        if len(items) >= MAX_ITEMS_PER_USER:
+            report.append(f"⚠️ Лимит {MAX_ITEMS_PER_USER} товаров достигнут, не добавлено:\n{url}")
+            continue
+
+        price = await asyncio.to_thread(get_product_price, url)
+        if price is not None:
+            items[url] = {"last_price": price}
+            report.append(f"✅ Добавлено (цена {price} руб.):\n{url}")
+        else:
+            report.append(f"❌ Не удалось найти цену:\n{url}")
+
+    if not items:
+        user_trackers.pop(user_id, None)
+
+    await message.answer("\n\n".join(report))
