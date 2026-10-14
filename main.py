@@ -8,7 +8,7 @@ dp.include_router(router)
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    bot = Bot(token=TOKEN)
+    bot = Bot(token=BOT_TOKEN)
 
     asyncio.create_task(notifier(bot))
 
