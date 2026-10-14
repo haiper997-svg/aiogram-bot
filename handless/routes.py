@@ -90,9 +90,9 @@ async def notifier(bot: Bot):
 
                         user_trackers[user_id]["last_price"] = current_price
 
-        (await asyncio.sleep(1800)
+        await asyncio.sleep(1800)
 
-@router.message(Command('start')))
+@router.message(Command('start'))
 async def start(message: Message):
     await message.answer(
         "🤖 Бот мониторинга цен!\n\n"
