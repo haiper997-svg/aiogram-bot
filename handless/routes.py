@@ -29,6 +29,21 @@ NUM_RE = re.compile(
 )
 
 
+def fetch_page(url: str) -> requests.Response:
+    """Загружает страницу, проходя cookie-заглушку хостинга Beget."""
+    session = requests.Session()
+    session.headers.update(HEADERS)
+    session.cookies.set("beget", "begetok")  # cookie, которую ставит заглушка
+
+    response = session.get(url, timeout=15)
+
+    # Если заглушка всё равно пришла, повторяем запрос уже с cookie
+    if "beget=begetok" in response.text and len(response.text) < 2000:
+        response = session.get(url, timeout=15)
+
+    return response
+
+
 def parse_price(raw) -> int | None:
     """Достаёт ПЕРВОЕ число из строки и проверяет диапазон. Копейки отбрасываются."""
     if raw is None:
@@ -128,19 +143,20 @@ def extract_text_price(soup: BeautifulSoup) -> int | None:
 
 def get_product_price(url: str) -> int | None:
     try:
-        response = requests.get(url, headers=HEADERS, timeout=15)
+        response = fetch_page(url)
         logging.info(f"📡 Статус ответа от сайта для {url}: {response.status_code}")
 
         if response.status_code != 200:
             logging.warning(f"Тело ответа: {response.text[:500]!r}")
             return None
 
+        # Защита от неверной кодировки
         if not response.encoding or response.encoding.lower() == "iso-8859-1":
             response.encoding = response.apparent_encoding
         html = response.text
         soup = BeautifulSoup(html, "html.parser")
 
-        # Если страница подозрительно короткая, сразу показываем её целиком
+        # Если страница подозрительно короткая, показываем её целиком
         if len(html) < 2000:
             logging.warning(f"⚠️ Короткая страница ({len(html)} символов): {html!r}")
 
@@ -155,6 +171,7 @@ def get_product_price(url: str) -> int | None:
                 logging.info(f"✅ Цена найдена методом '{name}': {val}")
                 return val
 
+        # Ничего не нашли: сохраняем страницу и логируем кандидатов
         with open("debug.html", "w", encoding="utf-8") as f:
             f.write(html)
         logging.warning(f"❌ Не удалось извлечь цену. Страница сохранена в debug.html ({len(html)} символов)")
