@@ -77,7 +77,8 @@ def get_product_price(url: str) -> int | None:
             for tag_attr in meta_tags:
                 meta = soup.find("meta", attrs=tag_attr) or soup.find(attrs=tag_attr)
                 if meta:
-                    val_str = meta.get("content") or meta.get("value")if val_str:
+                    val_str = meta.get("content") or meta.get("value")
+                    if val_str:
                         clean = re.sub(r"\D", "", val_str)
                         if clean:
                             val = int(clean)
