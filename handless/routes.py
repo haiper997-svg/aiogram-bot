@@ -25,37 +25,59 @@ def get_product_price(url: str) -> int | None:
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # Ищем все блоки, у которых в class или id содержится слово 'price'
-            price_elements = soup.find_all(attrs={"class": re.compile("price", re.I)}) + \
-                             soup.find_all(attrs={"id": re.compile("price", re.I)})
+            # 1. Поиск по известным классам (Bitrix, Tilda, интернет-магазины)
+            target_selectors = [
+                {"class": "product-item-detail-price-current"},  # Bitrix детальная
+                {"class": "product-item-price-current"},        # Bitrix каталог
+                {"class": "js-product-price"},                  # Tilda
+                {"class": re.compile("price", re.I)},           # Любые классы со словом price
+                {"id": re.compile("price", re.I)}               # Любые ID со словом price
+            ]
 
-            prices_found = []
-            for el in price_elements:
-                text = el.get_text(strip=True)
-                clean = re.sub(r"\D", "", text)
+            for selector in target_selectors:
+                elements = soup.find_all(attrs=selector)
+                for el in elements:
+                    text = el.get_text(strip=True)
+                    clean = re.sub(r"\D", "", text)
+                    if clean:
+                        val = int(clean)
+                        if 50 <= val <= 1000000:
+                            logging.info(f"✅ Цена найдена по селектору {selector}: {val}")
+                            return val
+
+            # 2. Поиск через мета-теги (OpenGraph / Schema.org)
+            meta_tags = [
+                {"property": "product:price:amount"},
+                {"property": "og:price:amount"},
+                {"itemprop": "price"}
+            ]
+            for tag_attr in meta_tags:
+                meta = soup.find("meta", attrs=tag_attr) or soup.find(attrs=tag_attr)
+                if meta:
+                    val_str = meta.get("content") or meta.get("value")
+                    if val_str:
+                        clean = re.sub(r"\D", "", val_str)
+                        if clean:
+                            val = int(clean)
+                            if 50 <= val <= 1000000:
+                                logging.info(f"✅ Цена найдена через мета/атрибут {tag_attr}: {val}")
+                                return val
+
+            # 3. Крайний метод: сканирование всего текста страницы на наличие цен с рублями
+            page_text = soup.get_text()
+            matches = re.findall(r'(\d[\d\s]{1,8})\s*(?:руб|₽|р\.)', page_text, re.IGNORECASE)
+            for m in matches:
+                clean = re.sub(r"\D", "", m)
                 if clean:
                     val = int(clean)
-                    # Фильтруем разумные пределы цены (от 50 до 1 000 000 рублей)
                     if 50 <= val <= 1000000:
-                        prices_found.append(val)
+                        logging.info(f"✅ Цена найдена через текстовый паттерн: {val}")
+                        return val
 
-            if prices_found:
-                chosen_price = prices_found[0]
-                logging.info(f"✅ Успешно найдена цена по атрибутам price: {chosen_price}")
-                return chosen_price
-
-            # Запасной вариант: поиск через мета-теги товара
-            meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
-            if meta_price and meta_price.get("content"):
-                clean_price = re.sub(r"\D", "", meta_price["content"])
-                if clean_price:
-                    val = int(clean_price)
-                    logging.info(f"✅ Найдена цена через мета-теги: {val}")
-                    return val
-
+        logging.warning(f"❌ Не удалось извлечь цену со страницы {url}")
         return None
     except Exception as e:
-        logging.error(f"❌ Ошибка при парсинге {url}: {e}")
+        logging.error(f"❌ Ошибка при запросе {url}: {e}")
         return None
 
 async def notifier(bot: Bot):
@@ -64,7 +86,6 @@ async def notifier(bot: Bot):
             for user_id, data in list(user_trackers.items()):
                 url = data["url"]
                 last_price = data["last_price"]
-
                 current_price = get_product_price(url)
 
                 if current_price is not None:
@@ -85,7 +106,8 @@ async def notifier(bot: Bot):
                             text = (
                                 f"📈 Цена выросла!\n\n"
                                 f"🔗 [Ссылка на товар]({url})\n"
-                                f"📉 Было: {last_price} руб.\n"f"📈 Стало: {current_price} руб.\n"
+                                f"📉 Было: {last_price} руб.\n"
+                                f"📈 Стало: {current_price} руб.\n"
                                 f"⚠️ Рост на: {diff} руб."
                             )
 
