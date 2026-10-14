@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from os import getenv
 from aiogram import Dispatcher, Bot, BaseMiddleware
 from handless.routes import router, notifier
@@ -43,27 +44,40 @@ async def main():
     me = await bot.get_me()
     logging.info(f"✅ Бот: @{me.username}")
 
-    await bot.delete_webhook()  # сообщения в очереди не сбрасываем
+    await bot.delete_webhook()
 
     asyncio.create_task(notifier(bot))
 
-    print("start... (ручной polling)")
+    print("start... (короткий polling)")
     offset = None
+    polls = 0
+    last_beat = time.monotonic()
+
     while True:
         try:
-            updates = await bot.get_updates(
-                offset=offset, timeout=30, request_timeout=40
+            # Короткие запросы: сервер отвечает за 2 секунды, соединение не висит
+            updates = await asyncio.wait_for(
+                bot.get_updates(offset=offset, timeout=2, request_timeout=10),
+                timeout=15,
             )
         except Exception as e:
             logging.error(f"getUpdates: {type(e).__name__}: {e}")
             await asyncio.sleep(3)
             continue
 
+        polls += 1
+        if time.monotonic() - last_beat >= 60:
+            logging.info(f"💓 Бот жив, запросов к Telegram за минуту: {polls}")
+            polls = 0
+            last_beat = time.monotonic()
+
         for update in updates:
             offset = update.update_id + 1
             task = asyncio.create_task(handle_update(bot, update))
             background_tasks.add(task)
             task.add_done_callback(background_tasks.discard)
+
+        await asyncio.sleep(0.5)
 
 
 if __name__ == '__main__':
