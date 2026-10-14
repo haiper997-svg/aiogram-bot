@@ -13,8 +13,8 @@ router = Router()
 # Структура: {user_id: {url: {"last_price": int | None}}}
 user_trackers: dict[int, dict[str, dict]] = {}
 
-MAX_ITEMS_PER_USER = 10   # лимит товаров на пользователя
-CHECK_INTERVAL = 1800     # проверка раз в 30 минут
+MAX_ITEMS_PER_USER = 10     # лимит товаров на пользователя
+CHECK_INTERVAL = 1800       # проверка раз в 30 минут
 PAUSE_BETWEEN_REQUESTS = 2  # пауза между запросами к сайтам, сек
 
 MIN_PRICE = 50
@@ -306,7 +306,7 @@ async def stop(message: Message):
 @router.message(F.text.regexp(r"https?://\S+"))
 async def catch_product_links(message: Message):
     user_id = message.from_user.id
-    urls = list(dict.fromkeys(URL_RE.findall(message.text)))  # без дубликатов, порядок сохранён
+    urls = list(dict.fromkeys(URL_RE.findall(message.text)))  # без дубликатов
 
     items = user_trackers.setdefault(user_id, {})
     await message.answer("🔍 Проверяю ссылки...")
