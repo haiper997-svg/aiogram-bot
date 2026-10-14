@@ -22,89 +22,40 @@ def get_product_price(url: str) -> int | None:
     try:
         response = requests.get(url, headers=headers, timeout=10)
         logging.info(f"📡 Статус ответа от сайта для {url}: {response.status_code}")
-
+        
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
+            
+            # 1. Точный поиск по найденному классу Bitrix (как на вашем скриншоте)
+            price_element = soup.find("div", class_="product-item-detail-price-current")
+            
+            # 2. Если вдруг класс отличается, ищем элементы, у которых ID заканчивается на _price
+            if not price_element:
+                price_element = soup.find("div", id=re.compile(r"_price$"))
+                
+            # 3. Универсальный поиск по любому классу, содержащему слово price
+            if not price_element:
+                price_element = soup.find(class_=re.compile("price", re.I))
 
-            # 1. Поиск через JSON-LD (Schema.org микроразметка) — есть на Tilda, Bitrix и большинстве магазинов для SEO
-            for script in soup.find_all("script", type="application/ld+json"):
-                if script.string:
-                    try:
-                        data = json.loads(script.string)
-                        items = data if isinstance(data, list) else [data]
-                        for item in items:
-                            if isinstance(item, dict):
-                                offers = item.get("offers")
-                                if offers:
-                                    if isinstance(offers, list):
-                                        offers = offers[0]
-                                    price_val = offers.get("price") or offers.get("lowPrice")
-                                    if price_val:
-                                        clean = re.sub(r"\D", "", str(price_val))
-                                        if clean:
-                                            val = int(clean)
-                                            if 50 <= val <= 1000000:
-                                                logging.info(f"✅ Цена найдена через JSON-LD: {val}")
-                                                return val
-                                direct_price = item.get("price")
-                                if direct_price:
-                                    clean = re.sub(r"\D", "", str(direct_price))
-                                    if clean:
-                                        val = int(clean)
-                                        if 50 <= val <= 1000000:
-                                            logging.info(f"✅ Цена найдена через JSON-LD (direct): {val}")
-                                            return val
-                    except Exception:
-                        pass
-
-            # 2. Поиск в сыром HTML через JSON-шаблоны переменных (часто используется в Tilda и JS-приложениях)
-            html_text = response.text
-            price_matches = re.findall(r'"price"\s*:\s*["\']?(\d+)["\']?', html_text)
-            for pm in price_matches:
-                clean = re.sub(r"\D", "", pm)
-                if clean:
-                    val = int(clean)
+            if price_element:
+                clean_price = re.sub(r"\D", "", price_element.text)
+                if clean_price:
+                    val = int(clean_price)
                     if 50 <= val <= 1000000:
-                        logging.info(f"✅ Цена найдена через JSON-шаблон в коде: {val}")
+                        logging.info(f"✅ Успешно найдена цена: {val}")
                         return val
 
-            # 3. Поиск через стандартные мета-теги
-            meta_tags = [
-                {"property": "product:price:amount"},
-                {"property": "og:price:amount"},
-                {"itemprop": "price"}
-            ]
-            for tag_attr in meta_tags:
-                meta = soup.find("meta", attrs=tag_attr) or soup.find(attrs=tag_attr)
-                if meta:
-                    val_str = meta.get("content") or meta.get("value")
-                    if val_str:
-                        clean = re.sub(r"\D", "", val_str)
-                        if clean:
-                            val = int(clean)
-                            if 50 <= val <= 1000000:
-                                logging.info(f"✅ Цена найдена через мета-тег: {val}")
-                                return val
-
-            # 4. Поиск по визуальным классам (Bitrix, Tilda)
-            target_selectors = [
-                {"class": "product-item-detail-price-current"},
-                {"class": "product-item-price-current"},
-                {"class": "js-product-price"},
-                {"class": re.compile("price", re.I)},
-                {"id": re.compile("price", re.I)}
-            ]
-            for selector in target_selectors:
-                elements = soup.find_all(attrs=selector)
-                for el in elements:
-                    text = el.get_text(strip=True)
-                    clean = re.sub(r"\D", "", text)
-                    if clean:
-                        val = int(clean)
-                        if 50 <= val <= 1000000:
-                            logging.info(f"✅ Цена найдена по селектору: {val}")
-                            return val
-
+            # 4. Запасной текстовый поиск по всей странице
+            page_text = soup.get_text()
+            matches = re.findall(r'(\d[\d\s]{1,8})\s*(?:руб|₽|р\.)', page_text, re.IGNORECASE)
+            for m in matches:
+                clean = re.sub(r"\D", "", m)
+                if clean:
+                    val = int(clean)
+                    if 100 <= val <= 1000000:
+                        logging.info(f"✅ Цена найдена через текст: {val}")
+                        return val
+                        
         logging.warning(f"❌ Не удалось извлечь цену со страницы {url}")
         return None
     except Exception as e:
