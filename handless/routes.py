@@ -20,29 +20,41 @@ def get_product_price(url: str) -> int | None:
     }
     try:
         response = requests.get(url, headers=headers, timeout=10)
-        
         logging.info(f"📡 Статус ответа от сайта для {url}: {response.status_code}")
-        
+
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            
-            
-            price_element = soup.find("div", class_="product-item-detail-price-current")
-            
-            if not price_element:
-                meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
-                if meta_price and meta_price.get("content"):
-                    clean_price = re.sub(r"\D", "", meta_price["content"])
-                    if clean_price:
-                        return int(clean_price)
-    
-            if not price_element:
-                price_element = soup.find(class_=re.compile("price", re.I))
-            
+
+            # 1. Поиск по известным классам в Bitrix
+            price_element = (
+                    soup.find("div", class_="product-item-detail-price-current") or
+                    soup.find("div", class_="product-item-price-current") or
+                    soup.find(class_=re.compile("price-current", re.I))
+            )
+
             if price_element:
                 clean_price = re.sub(r"\D", "", price_element.text)
-                return int(clean_price) if clean_price else None
-                
+                if clean_price:
+                    return int(clean_price)
+
+            # 2. Поиск через мета-теги
+            meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
+            if meta_price and meta_price.get("content"):
+                clean_price = re.sub(r"\D", "", meta_price["content"])
+                if clean_price:
+                    return int(clean_price)
+
+            # 3. Универсальный поиск по тексту с символом рубля (₽ или руб)
+            for tag in soup.find_all(["div", "span", "p", "b", "strong", "ins", "price"]):
+                text = tag.get_text(strip=True)
+                if ("₽" in text or "руб" in text.lower()) and len(text) < 30:
+                    clean_price = re.sub(r"\D", "", text)
+                    if clean_price:
+                        val = int(clean_price)
+                        # Проверяем, что это похоже на реальную цену товара
+                        if 100 <= val <= 1000000:
+                            return val
+
         return None
     except Exception as e:
         logging.error(f"❌ Ошибка при парсинге {url}: {e}")
@@ -74,8 +86,7 @@ async def notifier(bot: Bot):
                             diff = current_price - last_price
                             text = (
                                 f"📈 Цена выросла!\n\n"
-                                f"🔗 [Ссылка на товар]({url})\n"
-                                f"📉 Было: {last_price} руб.\n"
+                                f"🔗 [Ссылка на товар]({url})\n"f"📉 Было: {last_price} руб.\n"
                                 f"📈 Стало: {current_price} руб.\n"
                                 f"⚠️ Рост на: {diff} руб."
                             )
