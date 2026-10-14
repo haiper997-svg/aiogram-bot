@@ -15,22 +15,37 @@ user_trackers = {}
 def get_product_price(url: str) -> int | None:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
     }
     try:
         response = requests.get(url, headers=headers, timeout=10)
+        
+        logging.info(f"📡 Статус ответа от сайта для {url}: {response.status_code}")
+        
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-
-            # Точный поиск по классу из разметки сайта Torch
+            
+            
             price_element = soup.find("div", class_="product-item-detail-price-current")
-
+            
+            if not price_element:
+                meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
+                if meta_price and meta_price.get("content"):
+                    clean_price = re.sub(r"\D", "", meta_price["content"])
+                    if clean_price:
+                        return int(clean_price)
+    
+            if not price_element:
+                price_element = soup.find(class_=re.compile("price", re.I))
+            
             if price_element:
                 clean_price = re.sub(r"\D", "", price_element.text)
                 return int(clean_price) if clean_price else None
+                
         return None
     except Exception as e:
-        logging.error(f"Ошибка при парсинге {url}: {e}")
+        logging.error(f"❌ Ошибка при парсинге {url}: {e}")
         return None
 
 async def notifier(bot: Bot):
