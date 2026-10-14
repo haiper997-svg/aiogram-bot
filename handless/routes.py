@@ -20,7 +20,7 @@ async def notifier(bot: Bot):
                 except Exception:
                     pass
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(5)
 
 @router.message(Command('start'))
 async def start(message: Message):
