@@ -1,7 +1,7 @@
 from os import getenv
 import asyncio
 from aiogram import Dispatcher, Bot
-from handless.routes import router, notifier
+from handless.routes import router
 
 TOKEN = getenv("BOT_TOKEN")
 
