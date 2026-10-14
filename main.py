@@ -32,16 +32,22 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
 
     me = await bot.get_me()
-    logging.info(f"✅ Telegram доступен, бот: @{me.username}")
-
-    info = await bot.get_webhook_info()
-    logging.info(f"Webhook: url={info.url!r}, pending={info.pending_update_count}, last_error={info.last_error_message!r}")
+    logging.info(f"✅ Бот: @{me.username}")
 
     await bot.delete_webhook(drop_pending_updates=True)
-    logging.info("Webhook сброшен, запускаю polling")
+    logging.info("⏳ Тест: ОТПРАВЬТЕ БОТУ /start В БЛИЖАЙШИЕ 25 СЕКУНД")
 
+    for i in range(1, 6):
+        try:
+            updates = await asyncio.wait_for(
+                bot.get_updates(timeout=3, request_timeout=15), timeout=20
+            )
+            logging.info(f"🧪 getUpdates #{i}: получено {len(updates)} шт.")
+        except Exception as e:
+            logging.error(f"🧪 getUpdates #{i}: {type(e).__name__}: {e}")
+
+    logging.info("Тест окончен, запускаю обычный polling")
     asyncio.create_task(notifier(bot))
-
     await dp.start_polling(bot)
 
 
