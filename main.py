@@ -26,29 +26,44 @@ dp = Dispatcher()
 dp.update.outer_middleware(LogUpdates())
 dp.include_router(router)
 
+background_tasks = set()
+
+
+async def handle_update(bot: Bot, update):
+    try:
+        await dp.feed_update(bot, update)
+    except Exception:
+        logging.exception("Ошибка при обработке обновления")
+
 
 async def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     bot = Bot(token=BOT_TOKEN)
 
     me = await bot.get_me()
     logging.info(f"✅ Бот: @{me.username}")
 
-    await bot.delete_webhook(drop_pending_updates=True)
-    logging.info("⏳ Тест: ОТПРАВЬТЕ БОТУ /start В БЛИЖАЙШИЕ 25 СЕКУНД")
+    await bot.delete_webhook()  # сообщения в очереди не сбрасываем
 
-    for i in range(1, 6):
-        try:
-            updates = await asyncio.wait_for(
-                bot.get_updates(timeout=3, request_timeout=15), timeout=20
-            )
-            logging.info(f"🧪 getUpdates #{i}: получено {len(updates)} шт.")
-        except Exception as e:
-            logging.error(f"🧪 getUpdates #{i}: {type(e).__name__}: {e}")
-
-    logging.info("Тест окончен, запускаю обычный polling")
     asyncio.create_task(notifier(bot))
-    await dp.start_polling(bot)
+
+    print("start... (ручной polling)")
+    offset = None
+    while True:
+        try:
+            updates = await bot.get_updates(
+                offset=offset, timeout=30, request_timeout=40
+            )
+        except Exception as e:
+            logging.error(f"getUpdates: {type(e).__name__}: {e}")
+            await asyncio.sleep(3)
+            continue
+
+        for update in updates:
+            offset = update.update_id + 1
+            task = asyncio.create_task(handle_update(bot, update))
+            background_tasks.add(task)
+            task.add_done_callback(background_tasks.discard)
 
 
 if __name__ == '__main__':
