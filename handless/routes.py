@@ -25,19 +25,26 @@ def get_product_price(url: str) -> int | None:
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # Метод 1: Универсальный поиск по всему тексту страницы (игнорирует HTML-верстку и классы)
-            page_text = soup.get_text()
-            matches = re.findall(r'(\d[\d\s]{1,8})\s*(?:руб|₽|р\.)', page_text, re.IGNORECASE)
-            for m in matches:
-                clean = re.sub(r"\D", "", m)
+            # Ищем все блоки, у которых в class или id содержится слово 'price'
+            price_elements = soup.find_all(attrs={"class": re.compile("price", re.I)}) + \
+                             soup.find_all(attrs={"id": re.compile("price", re.I)})
+
+            prices_found = []
+            for el in price_elements:
+                text = el.get_text(strip=True)
+                clean = re.sub(r"\D", "", text)
                 if clean:
                     val = int(clean)
-                    # Отсеиваем случайные числа (артикулы, размеры и т.д.), оставляя цену
-                    if 100 <= val <= 1000000:
-                        logging.info(f"✅ Успешно найдена цена по тексту: {val}")
-                        return val
+                    # Фильтруем разумные пределы цены (от 50 до 1 000 000 рублей)
+                    if 50 <= val <= 1000000:
+                        prices_found.append(val)
 
-            # Метод 2: Запасной поиск по мета-тегам товара
+            if prices_found:
+                chosen_price = prices_found[0]
+                logging.info(f"✅ Успешно найдена цена по атрибутам price: {chosen_price}")
+                return chosen_price
+
+            # Запасной вариант: поиск через мета-теги товара
             meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
             if meta_price and meta_price.get("content"):
                 clean_price = re.sub(r"\D", "", meta_price["content"])
@@ -78,8 +85,7 @@ async def notifier(bot: Bot):
                             text = (
                                 f"📈 Цена выросла!\n\n"
                                 f"🔗 [Ссылка на товар]({url})\n"
-                                f"📉 Было: {last_price} руб.\n"
-                                f"📈 Стало: {current_price} руб.\n"
+                                f"📉 Было: {last_price} руб.\n"f"📈 Стало: {current_price} руб.\n"
                                 f"⚠️ Рост на: {diff} руб."
                             )
 
