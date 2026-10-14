@@ -28,7 +28,7 @@ dp.include_router(router)
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     bot = Bot(token=BOT_TOKEN)
 
     me = await bot.get_me()
