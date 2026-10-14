@@ -21,7 +21,10 @@ def get_product_price(url: str) -> int | None:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            price_element = soup.find("span", class_="price") or soup.find("div", class_="price")
+
+            # Точный поиск по классу из разметки сайта Torch
+            price_element = soup.find("div", class_="product-item-detail-price-current")
+
             if price_element:
                 clean_price = re.sub(r"\D", "", price_element.text)
                 return int(clean_price) if clean_price else None
@@ -98,6 +101,7 @@ async def stop(message: Message):
         await message.answer("❌ Отслеживание остановлено.")
     else:
         await message.answer("У вас нет активных отслеживаний.")
+
 @router.message(F.text.startswith("http"))
 async def catch_product_link(message: Message):
     user_id = message.from_user.id
