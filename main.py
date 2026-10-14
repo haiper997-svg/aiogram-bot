@@ -1,14 +1,13 @@
-from os import getenv
 import asyncio
+import logging
 from aiogram import Dispatcher, Bot
-from handless.routes import router
-
-TOKEN = getenv("BOT_TOKEN")
+from handless.routes import router, notifier
 
 dp = Dispatcher()
 dp.include_router(router)
 
 async def main():
+    logging.basicConfig(level=logging.INFO)
     bot = Bot(token=TOKEN)
 
     asyncio.create_task(notifier(bot))
@@ -16,6 +15,5 @@ async def main():
     print("start...")
     await dp.start_polling(bot)
 
-
-if __name__ == '__main__':
+if name == 'main':
     asyncio.run(main())
