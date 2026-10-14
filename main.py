@@ -3,14 +3,17 @@ import logging
 from os import getenv
 from aiogram import Dispatcher, Bot
 from handless.routes import router, notifier
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 BOT_TOKEN = getenv("BOT_TOKEN")
 
 if not BOT_TOKEN:
-    raise ValueError("❌ Ошибка")
+    raise ValueError("❌Ошибка")
 
 dp = Dispatcher()
 dp.include_router(router)
