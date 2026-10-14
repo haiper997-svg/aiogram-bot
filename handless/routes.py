@@ -130,16 +130,19 @@ def get_product_price(url: str) -> int | None:
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
         logging.info(f"📡 Статус ответа от сайта для {url}: {response.status_code}")
-        logging.warning(f"Тело ответа: {html!r}")
 
         if response.status_code != 200:
+            logging.warning(f"Тело ответа: {response.text[:500]!r}")
             return None
 
-        # content + apparent_encoding защищают от неверной кодировки
         if not response.encoding or response.encoding.lower() == "iso-8859-1":
             response.encoding = response.apparent_encoding
         html = response.text
         soup = BeautifulSoup(html, "html.parser")
+
+        # Если страница подозрительно короткая, сразу показываем её целиком
+        if len(html) < 2000:
+            logging.warning(f"⚠️ Короткая страница ({len(html)} символов): {html!r}")
 
         for name, func in (
             ("structured", lambda: extract_structured_price(soup)),
@@ -152,7 +155,6 @@ def get_product_price(url: str) -> int | None:
                 logging.info(f"✅ Цена найдена методом '{name}': {val}")
                 return val
 
-        # Ничего не нашли: сохраняем страницу и логируем кандидатов
         with open("debug.html", "w", encoding="utf-8") as f:
             f.write(html)
         logging.warning(f"❌ Не удалось извлечь цену. Страница сохранена в debug.html ({len(html)} символов)")
